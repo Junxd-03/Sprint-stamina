@@ -1,0 +1,166 @@
+--==================================================
+-- SERVICES
+--==================================================
+local Players = game:GetService("Players")
+local CAS = game:GetService("ContextActionService")
+local RunService = game:GetService("RunService")
+
+--==================================================
+-- PLAYER + SPEED CONFIG (GIỮ NGUYÊN)
+--==================================================
+local player = Players.LocalPlayer
+local speedBoostValue = 6
+local normalSpeed = 15
+
+--==================================================
+-- STAMINA CONFIG (GIỮ NGUYÊN)
+--==================================================
+local maxStamina = 100
+local stamina = maxStamina
+local staminaDrain = 10
+local staminaRegen = 20
+
+--==================================================
+-- STATE
+--==================================================
+local sprintActive = false
+local humanoid
+
+--==================================================
+-- STAMINA BAR UI (NGẮN HƠN + TỰ THÍCH ỨNG)
+--==================================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "StaminaGui"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+screenGui.IgnoreGuiInset = true
+screenGui.Enabled = true
+
+local barBackground = Instance.new("Frame")
+barBackground.Parent = screenGui
+
+-- 🔹 NGẮN HƠN NỮA
+barBackground.Size = UDim2.new(0.23, 0, 0.014, 0)
+
+-- 🔹 Tự bám góc dưới phải (mọi điện thoại)
+barBackground.Position = UDim2.new(0.985, 0, 0.97, 0)
+barBackground.AnchorPoint = Vector2.new(1, 1)
+
+barBackground.BackgroundTransparency = 1
+barBackground.BorderSizePixel = 0
+
+-- 🔹 Giới hạn kích thước cho mọi màn hình
+local sizeConstraint = Instance.new("UISizeConstraint")
+sizeConstraint.Parent = barBackground
+sizeConstraint.MinSize = Vector2.new(140, 8)
+sizeConstraint.MaxSize = Vector2.new(300, 14)
+
+-- VIỀN KIỂU DOORS
+local stroke = Instance.new("UIStroke")
+stroke.Parent = barBackground
+stroke.Color = Color3.fromRGB(0, 0, 0)
+stroke.Thickness = 2
+stroke.Transparency = 0.65
+stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+local barFill = Instance.new("Frame")
+barFill.Parent = barBackground
+barFill.Size = UDim2.new(1, 0, 1, 0)
+barFill.BackgroundColor3 = Color3.fromRGB(220, 195, 165)
+barFill.BorderSizePixel = 0
+
+--==================================================
+-- CHARACTER + SPEED BOOST ICON (GIỮ NGUYÊN)
+--==================================================
+local function setupCharacter(character)
+	humanoid = character:WaitForChild("Humanoid")
+
+	local gui = player:WaitForChild("PlayerGui")
+	local speedBoostIcon = gui.MainUI.MainFrame.Healthbar.Effects.SpeedBoost
+
+	local function checkBoost()
+		if not sprintActive or humanoid.Health <= 0 then
+			speedBoostIcon.Visible = false
+			return
+		end
+
+		if humanoid.WalkSpeed == normalSpeed then
+			humanoid.WalkSpeed = normalSpeed + speedBoostValue
+			speedBoostIcon.Visible = true
+		elseif humanoid.WalkSpeed == normalSpeed + speedBoostValue then
+			speedBoostIcon.Visible = true
+		else
+			speedBoostIcon.Visible = false
+		end
+	end
+
+	humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(checkBoost)
+	humanoid:GetPropertyChangedSignal("Health"):Connect(checkBoost)
+
+	humanoid.Died:Connect(function()
+		speedBoostIcon.Visible = false
+	end)
+
+	humanoid.WalkSpeed = normalSpeed
+	checkBoost()
+end
+
+player.CharacterAdded:Connect(setupCharacter)
+if player.Character then
+	setupCharacter(player.Character)
+end
+
+--==================================================
+-- SPRINT TOGGLE
+--==================================================
+local function sprintToggle(_, inputState)
+	if inputState ~= Enum.UserInputState.Begin then return end
+	if not humanoid then return end
+
+	if sprintActive then
+		sprintActive = false
+		humanoid.WalkSpeed = normalSpeed
+	else
+		if stamina > 0 then
+			sprintActive = true
+			humanoid.WalkSpeed = normalSpeed + speedBoostValue
+		end
+	end
+end
+
+CAS:BindAction("Sprint", sprintToggle, true, Enum.KeyCode.LeftShift)
+CAS:SetTitle("Sprint", "Chạy")
+CAS:SetPosition("Sprint", UDim2.new(0.15, 0, 0.45, 0))
+
+local sprintButton = CAS:GetButton("Sprint")
+if sprintButton then
+	sprintButton.Size = UDim2.new(0.25, 0, 0.25, 0)
+	sprintButton.BackgroundTransparency = 1
+	sprintButton.BorderSizePixel = 0
+end
+
+--==================================================
+-- STAMINA UPDATE
+--==================================================
+RunService.RenderStepped:Connect(function(dt)
+	if not humanoid then return end
+
+	local isMoving = humanoid.MoveDirection.Magnitude > 0
+
+	if sprintActive and isMoving then
+		humanoid.WalkSpeed = normalSpeed + speedBoostValue
+
+		stamina -= staminaDrain * dt
+		if stamina <= 0 then
+			stamina = 0
+			sprintActive = false
+			humanoid.WalkSpeed = normalSpeed
+		end
+	else
+		stamina += staminaRegen * dt
+		if stamina > maxStamina then
+			stamina = maxStamina
+		end
+	end
+
+	barFill.Size = UDim2.new(stamina / maxStamina, 0, 1, 0)
+end)
