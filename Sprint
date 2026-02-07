@@ -128,7 +128,7 @@ local function sprintToggle(_, inputState)
 end
 
 CAS:BindAction("Sprint", sprintToggle, true, Enum.KeyCode.LeftShift)
-CAS:SetTitle("Sprint", "Chạy")
+CAS:SetTitle("Sprint", "Sprint")
 CAS:SetPosition("Sprint", UDim2.new(0.15, 0, 0.45, 0))
 
 local sprintButton = CAS:GetButton("Sprint")
